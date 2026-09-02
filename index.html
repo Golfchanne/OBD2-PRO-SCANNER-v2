@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>OBD2 PRO — Diagnostic & Fuel Tuning Suite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="bg-grid"></div>
+
+<!-- ══════ TOP BAR ══════ -->
+<header class="topbar">
+  <div class="brand">
+    <div class="logo-orb"><span>⚡</span></div>
+    <div class="brand-txt">
+      <h1>OBD2<em>PRO</em></h1>
+      <small id="vehInfo">ยังไม่เชื่อมต่อ</small>
+    </div>
+  </div>
+
+  <div class="conn-cluster">
+    <div class="pill" id="volt"><span class="pill-lbl">แบต</span><b>--</b></div>
+    <div class="pill" id="rate"><span class="pill-lbl">อัตรา</span><b>0/s</b></div>
+    <span id="mil" class="mil">MIL</span>
+    <span class="link-state"><i id="dot" class="dot"></i><span id="status">ตัดการเชื่อมต่อ</span></span>
+    <select id="mode" class="sel-sm">
+      <option value="ble">อุปกรณ์จริง (BLE)</option>
+      <option value="sim">โหมดจำลอง (Demo)</option>
+    </select>
+    <button id="btnConnect" class="btn primary">เชื่อมต่อ</button>
+    <button id="btnDisconnect" class="btn ghost" disabled>ตัด</button>
+  </div>
+</header>
+
+<div class="shell">
+  <!-- ══════ SIDE NAV ══════ -->
+  <nav class="rail">
+    <button class="navbtn active" data-tab="dash"><i>◎</i><span>แดชบอร์ด</span></button>
+    <button class="navbtn" data-tab="codes"><i>⚠</i><span>รหัสปัญหา</span></button>
+    <button class="navbtn" data-tab="tune"><i>⛽</i><span>จูนน้ำมัน</span></button>
+    <button class="navbtn" data-tab="freeze"><i>❄</i><span>Freeze Frame</span></button>
+    <button class="navbtn" data-tab="ready"><i>✓</i><span>Readiness</span></button>
+    <button class="navbtn" data-tab="graph"><i>📈</i><span>กราฟ &amp; Log</span></button>
+    <button class="navbtn" data-tab="reset"><i>⟳</i><span>รีเซต / UDS</span></button>
+    <button class="navbtn" data-tab="term"><i>▮</i><span>Terminal</span></button>
+  </nav>
+
+  <main class="content">
+
+  <!-- ══════ 1. DASHBOARD ══════ -->
+  <section id="dash" class="panel active">
+    <div class="ptitle"><h2>แดชบอร์ดค่าสด</h2><p>ข้อมูลเรียลไทม์จาก ECU ตามมาตรฐาน SAE J1979 Mode 01</p></div>
+    <div class="toolbar">
+      <button id="btnScanPids" class="btn">สแกน PID ที่รถรองรับ</button>
+      <button id="btnStart" class="btn ok" disabled>▶ เริ่มอ่านค่า</button>
+      <button id="btnStop" class="btn danger" disabled>■ หยุด</button>
+      <label class="inline">รอบโพล <input type="number" id="pollMs" value="200" min="80" step="20"> ms</label>
+    </div>
+    <div id="gauges" class="gauge-grid"></div>
+    <div class="card">
+      <h3>เลือกพารามิเตอร์ที่จะอ่าน</h3>
+      <div id="pidPicker" class="pid-picker"></div>
+    </div>
+  </section>
+
+  <!-- ══════ 2. DTC ══════ -->
+  <section id="codes" class="panel">
+    <div class="ptitle"><h2>รหัสปัญหา (DTC)</h2><p>Mode 03 · 07 · 0A — ยืนยันแล้ว / รอยืนยัน / ถาวร</p></div>
+    <div class="toolbar">
+      <button id="btnReadDtc" class="btn primary">สแกนรหัสทั้งหมด</button>
+      <button id="btnClearDtc" class="btn danger">ลบรหัส + ดับไฟ Check Engine</button>
+      <button id="btnExportDtc" class="btn ghost">Export รายงาน</button>
+    </div>
+    <div class="alert warn">
+      <b>ก่อนกดลบ:</b> กุญแจตำแหน่ง ON แต่ดับเครื่อง • บันทึกรหัสไว้ก่อนเสมอ •
+      การลบไม่ได้ซ่อมปัญหา • Readiness Monitor และค่าเรียนรู้ Fuel Trim จะถูกล้างทั้งหมด
+    </div>
+    <div id="dtcResult" class="stack"><p class="muted">ยังไม่ได้สแกน</p></div>
+  </section>
+
+  <!-- ══════ 3. FUEL TUNING ★ ══════ -->
+  <section id="tune" class="panel">
+    <div class="ptitle"><h2>โมดูลจูนน้ำมัน</h2>
+      <p>วิเคราะห์ Fuel Trim ตามโซนภาระ · คำนวณ VE Table สด · แนะนำค่าชดเชย MAF/หัวฉีด สำหรับ E10 / E20 / E85 / LPG / NGV</p></div>
+
+    <div class="card cfg">
+      <h3>1. ตั้งค่าเครื่องยนต์และเชื้อเพลิง</h3>
+      <div class="row">
+        <label>ชนิดเชื้อเพลิงที่ใช้จริง
+          <select id="fuelType"></select>
+        </label>
+        <label>ความจุเครื่องยนต์ (ลิตร)
+          <input id="engineDisp" type="number" value="1.5" step="0.1" min="0.6" max="8">
+        </label>
+        <label>จำนวนสูบ
+          <input id="engineCyl" type="number" value="4" min="1" max="12">
+        </label>
+        <label>ระบบอัดอากาศ
+          <select id="engineAsp">
+            <option value="na">NA (หายใจเอง)</option>
+            <option value="turbo">Turbo / Supercharger</option>
+          </select>
+        </label>
+      </div>
+      <div class="fuel-facts" id="fuelFacts"></div>
+    </div>
+
+    <div class="toolbar">
+      <button id="tuneStart" class="btn ok">▶ เริ่มเก็บข้อมูลจูน</button>
+      <button id="tuneStop" class="btn danger">■ หยุด</button>
+      <button id="tuneReset" class="btn ghost">ล้างข้อมูลที่เก็บ</button>
+      <button id="btnTuneReport" class="btn">Export รายงานจูน</button>
+      <span class="chip" id="tuneCount">0 ตัวอย่าง</span>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric"><span>Lambda (λ)</span><b id="lambdaNow">--</b></div>
+      <div class="metric"><span>AFR จริง</span><b id="afrNow">--</b></div>
+      <div class="metric"><span>AFR เป้าหมาย</span><b id="afrTarget">--</b></div>
+      <div class="metric"><span>STFT B1</span><b id="stftNow">--</b></div>
+      <div class="metric"><span>LTFT B1</span><b id="ltftNow">--</b></div>
+      <div class="metric hi"><span>Trim รวม</span><b id="totalTrim">--</b></div>
+      <div class="metric"><span>VE ปัจจุบัน</span><b id="veNow">--</b></div>
+      <div class="metric"><span>MAF จริง / คาดหมาย</span><b id="mafCmp">--</b></div>
+    </div>
+
+    <div class="card">
+      <h3>2. Fuel Trim แยกตามโซนภาระเครื่องยนต์</h3>
+      <div id="zoneGrid" class="zone-grid"></div>
+    </div>
+
+    <div class="card">
+      <h3>3. ผลวินิจฉัย &amp; ค่าชดเชยที่แนะนำ</h3>
+      <div id="tuneAdvice"><p class="muted">เริ่มเก็บข้อมูลแล้วขับใช้งานจริงอย่างน้อย 5–10 นาที (เดินเบา + คงที่ + เร่งเต็ม) เพื่อให้ครบทุกโซน</p></div>
+    </div>
+
+    <div class="card">
+      <h3>4. VE Table (Volumetric Efficiency) — สร้างสดจากรถคันนี้</h3>
+      <p class="muted">แกนนอน = รอบเครื่อง · แกนตั้ง = MAP (kPa) · ค่าในช่อง = ประสิทธิภาพเชิงปริมาตร %<br>
+        เขียว 80–100% = ปกติ · เหลือง &gt;105% = MAF อ่านสูงเกินหรือมีบูสต์ · แดง &lt;70% = ทางเดินอากาศ/ไอเสียอุดตัน</p>
+      <div class="tablewrap"><table id="veTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ══════ 4. FREEZE FRAME ══════ -->
+  <section id="freeze" class="panel">
+    <div class="ptitle"><h2>Freeze Frame</h2><p>สภาพเครื่องยนต์ ณ วินาทีที่ DTC ตัวแรกเกิดขึ้น (Mode 02)</p></div>
+    <div class="toolbar"><button id="btnFreeze" class="btn primary">อ่าน Freeze Frame</button></div>
+    <div id="freezeResult" class="kv-grid"></div>
+  </section>
+
+  <!-- ══════ 5. READINESS ══════ -->
+  <section id="ready" class="panel">
+    <div class="ptitle"><h2>Readiness Monitors</h2><p>ใช้เช็คความพร้อมก่อนไปตรวจสภาพ / ต่อภาษี</p></div>
+    <div class="toolbar"><button id="btnReady" class="btn primary">ตรวจสถานะ</button></div>
+    <div id="readyResult" class="monitor-grid"></div>
+  </section>
+
+  <!-- ══════ 6. GRAPH & LOG ══════ -->
+  <section id="graph" class="panel">
+    <div class="ptitle"><h2>กราฟ &amp; Data Logger</h2><p>บันทึกค่าและส่งออกเป็น CSV / JSON</p></div>
+    <div class="toolbar">
+      <select id="graphPid"></select>
+      <button id="btnLogStart" class="btn ok">เริ่มบันทึก</button>
+      <button id="btnLogStop" class="btn danger">หยุด</button>
+      <button id="btnCsv" class="btn ghost">Export CSV</button>
+      <button id="btnJson" class="btn ghost">Export JSON</button>
+      <span class="chip" id="logCount">0 แถว</span>
+    </div>
+    <canvas id="chart" height="300"></canvas>
+    <div class="tablewrap"><table id="logTable"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <!-- ══════ 7. RESET / UDS ══════ -->
+  <section id="reset" class="panel">
+    <div class="ptitle"><h2>รีเซต &amp; UDS</h2><p>ล้างค่าเรียนรู้ · ECU Reset · Routine Control (ISO 14229)</p></div>
+
+    <div class="alert danger">
+      <b>โซนอันตราย:</b> คำสั่งในหน้านี้เขียนลง ECU โดยตรง การส่ง Header/Routine ผิดรุ่น
+      อาจทำให้ ECU ค้าง สตาร์ตไม่ติด หรือต้องเขียนโปรแกรมใหม่ • ห้ามทำขณะรถวิ่ง • ต่อที่ชาร์จแบตไว้เสมอ
+    </div>
+
+    <div class="card">
+      <h3>1. รีเซตมาตรฐาน (ปลอดภัย ใช้ได้ทุกรุ่น)</h3>
+      <div class="btnrow">
+        <button class="btn danger" data-svc="clear">Mode 04 — ลบ DTC + ล้างค่าเรียนรู้เชื้อเพลิง</button>
+        <button class="btn" data-svc="reinit">รีเซตอะแดปเตอร์ (ATZ + Init)</button>
+        <button class="btn" data-svc="proto">แสดงโปรโตคอลที่ตรวจพบ</button>
+        <button class="btn" data-svc="battery">อ่านแรงดันแบตเตอรี่</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>2. พรีเซตตามยี่ห้อ</h3>
+      <div class="row">
+        <label>เลือกยี่ห้อ / รุ่น<select id="brandPreset"></select></label>
+      </div>
+      <div id="brandInfo" class="brand-info"></div>
+    </div>
+
+    <div class="card">
+      <h3>3. UDS ECU Reset (Service 0x11)</h3>
+      <div class="row">
+        <label>CAN Header (ATSH)<input id="udsSh" value="7E0"></label>
+        <label>Response Filter (ATCRA)<input id="udsCra" value="7E8"></label>
+        <label>ชนิดการรีเซต
+          <select id="udsReset">
+            <option value="01">01 — Hard Reset</option>
+            <option value="02">02 — Key Off/On Reset</option>
+            <option value="03">03 — Soft Reset</option>
+          </select>
+        </label>
+      </div>
+      <button id="btnUdsReset" class="btn danger">ส่ง ECU Reset</button>
+    </div>
+
+    <div class="card">
+      <h3>4. Routine Control (Service 0x31) — ล้างค่า Adaptation</h3>
+      <p class="muted">ใช้กับงาน: รีเซตค่าเรียนรู้หัวฉีด/Fuel Trim, Throttle Relearn, DPF Regen,
+        รีเซตอายุน้ำมันเครื่อง — <b>Routine ID ต่างกันตามยี่ห้อ ต้องยืนยันกับ Service Manual ของรุ่นนั้นก่อนเสมอ</b></p>
+      <div class="row">
+        <label>Session
+          <select id="udsSession">
+            <option value="1001">10 01 — Default</option>
+            <option value="1003" selected>10 03 — Extended Diagnostic</option>
+            <option value="1002">10 02 — Programming</option>
+          </select>
+        </label>
+        <label>Sub-function
+          <select id="rcSub">
+            <option value="01">01 — Start Routine</option>
+            <option value="02">02 — Stop Routine</option>
+            <option value="03">03 — Request Results</option>
+          </select>
+        </label>
+        <label>Routine ID (2 ไบต์)<input id="rcId" placeholder="เช่น 0203" maxlength="4"></label>
+        <label>Data เพิ่มเติม (hex)<input id="rcData" placeholder="ไม่บังคับ"></label>
+      </div>
+      <label class="ack"><input type="checkbox" id="ackRisk">
+        ข้าพเจ้าตรวจสอบ Routine ID กับคู่มือของรุ่นนี้แล้ว และรับผิดชอบผลที่เกิดขึ้นเอง</label>
+      <button id="btnRoutine" class="btn danger" disabled>ส่ง Routine Control</button>
+    </div>
+
+    <pre id="resetLog" class="console"></pre>
+  </section>
+
+  <!-- ══════ 8. TERMINAL ══════ -->
+  <section id="term" class="panel">
+    <div class="ptitle"><h2>Terminal</h2><p>ส่งคำสั่ง AT / OBD ดิบไปยังอะแดปเตอร์</p></div>
+    <pre id="console" class="console big"></pre>
+    <div class="cmdline">
+      <input id="cmdInput" placeholder="เช่น 010C, ATDP, 0902, 03 แล้วกด Enter" autocomplete="off">
+      <button id="btnSend" class="btn primary">ส่ง</button>
+      <button id="btnClearTerm" class="btn ghost">ล้าง</button>
+    </div>
+    <div class="quick">
+      <span>คำสั่งด่วน:</span>
+      <button class="btn tiny" data-cmd="ATZ">ATZ</button>
+      <button class="btn tiny" data-cmd="ATI">ATI</button>
+      <button class="btn tiny" data-cmd="ATRV">ATRV แบต</button>
+      <button class="btn tiny" data-cmd="ATDP">ATDP</button>
+      <button class="btn tiny" data-cmd="0100">0100</button>
+      <button class="btn tiny" data-cmd="0902">0902 VIN</button>
+      <button class="btn tiny" data-cmd="0106">0106 STFT</button>
+      <button class="btn tiny" data-cmd="0124">0124 λ</button>
+      <button class="btn tiny" data-cmd="03">03 DTC</button>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
